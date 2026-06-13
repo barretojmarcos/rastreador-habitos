@@ -40,6 +40,13 @@
     .header p { color: var(--cinza-texto); font-size: 14px; margin-top: 4px; }
     .header-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 
+    .dados-status {
+      display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: space-between;
+      font-size: 12px; color: var(--cinza-texto); margin: -10px 0 22px; width: 100%;
+    }
+    .dados-status .ok { color: var(--verde); font-weight: 600; }
+    .dados-status .aviso { color: #b45309; font-weight: 600; }
+
     .resumo {
       background: linear-gradient(135deg, #f0fdf4, #ffffff);
       border: 1px solid #dcfce7;
@@ -569,6 +576,7 @@
       const [nome, setNome] = useState("");
       const [freq, setFreq] = useState("daily");
       const [meta, setMeta] = useState(7); // meta de conclusões por semana
+      const [armazenamento, setArmazenamento] = useState(null); // null|persistente|volatil|indisponivel
       const primeira = useRef(true);
       const inputArquivo = useRef(null);
 
@@ -579,6 +587,23 @@
 
       useEffect(() => {
         carregar().then(d => setData(d || { habits: [] }));
+      }, []);
+
+      // pede ao navegador para não descartar os dados automaticamente
+      useEffect(() => {
+        (async () => {
+          try {
+            if (navigator.storage && navigator.storage.persist) {
+              let persistente = await navigator.storage.persisted();
+              if (!persistente) persistente = await navigator.storage.persist();
+              setArmazenamento(persistente ? "persistente" : "volatil");
+            } else {
+              setArmazenamento("indisponivel");
+            }
+          } catch (e) {
+            setArmazenamento("indisponivel");
+          }
+        })();
       }, []);
 
       // salva combinando hábitos + histórico numa única chave
@@ -636,9 +661,10 @@
         setData({ ...data, habits: habits.filter(h => h.id !== id) });
       }
 
-      // baixa um backup .json com hábitos + histórico
+      // baixa um backup .json com hábitos + histórico e registra a data
       function exportar() {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const atualizado = { ...data, lastBackup: hoje };
+        const blob = new Blob([JSON.stringify(atualizado, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -647,6 +673,7 @@
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
+        setData(atualizado);
       }
 
       // restaura a partir de um backup .json (substitui os dados atuais)
@@ -684,6 +711,10 @@
       const concluidosHoje = habits.filter(h => h.completions && h.completions[hoje]).length;
       const pct = habits.length ? Math.round((concluidosHoje / habits.length) * 100) : 0;
 
+      const ultimoBackup = data.lastBackup ? deChave(data.lastBackup).toLocaleDateString("pt-BR") : null;
+      const diasSemBackup = data.lastBackup ? difDias(new Date(), deChave(data.lastBackup)) : null;
+      const backupVelho = habits.length > 0 && (diasSemBackup === null || diasSemBackup > 7);
+
       return (
         <div className="container">
           <div className="header">
@@ -696,6 +727,18 @@
               <button className="btn-sec btn-sm" onClick={() => inputArquivo.current && inputArquivo.current.click()} title="Restaurar de um backup (.json)">⬆ Importar</button>
               <input ref={inputArquivo} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={aoImportar} />
             </div>
+          </div>
+
+          <div className="dados-status">
+            <span className={armazenamento === "persistente" ? "ok" : armazenamento === "volatil" ? "aviso" : ""}>
+              {armazenamento === "persistente" && "🔒 Dados protegidos no aparelho"}
+              {armazenamento === "volatil" && "⚠️ O navegador pode limpar os dados — exporte um backup"}
+              {armazenamento === "indisponivel" && "Armazenamento padrão do navegador"}
+              {armazenamento === null && "Verificando armazenamento…"}
+            </span>
+            <span className={backupVelho ? "aviso" : ""}>
+              {ultimoBackup ? `Último backup: ${ultimoBackup}` : "Sem backup ainda"}
+            </span>
           </div>
 
           <div className="resumo">
