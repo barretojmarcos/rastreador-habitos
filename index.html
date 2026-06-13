@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Rastreador de Hábitos</title>
+  <!-- PWA: instalável e offline (Adicionar à tela inicial no celular) -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#16a34a" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Hábitos" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <!-- Bibliotecas locais (vendor/) — funciona 100% offline, sem chamadas a terceiros -->
+  <script src="vendor/react.production.min.js"></script>
+  <script src="vendor/react-dom.production.min.js"></script>
+  <script src="vendor/babel.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --verde: #16a34a;
+      --verde-claro: #22c55e;
+      --cinza: #e5e7eb;
+      --cinza-texto: #6b7280;
+      --texto: #111827;
+      --borda: #e5e7eb;
+      --fundo-card: #ffffff;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #ffffff;
+      color: var(--texto);
+      line-height: 1.4;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+    .header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+    .header p { color: var(--cinza-texto); font-size: 14px; margin-top: 4px; }
+    .header-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .resumo {
+      background: linear-gradient(135deg, #f0fdf4, #ffffff);
+      border: 1px solid #dcfce7;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin-bottom: 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+    }
+    .resumo-texto { font-size: 15px; }
+    .resumo-texto strong { color: var(--verde); font-size: 20px; }
+    .resumo-barra { flex: 1; max-width: 220px; height: 10px; background: var(--cinza); border-radius: 999px; overflow: hidden; }
+    .resumo-barra > div { height: 100%; background: var(--verde); border-radius: 999px; transition: width .3s ease; }
+
+    .card {
+      background: var(--fundo-card);
+      border: 1px solid var(--borda);
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin-bottom: 14px;
+      transition: box-shadow .2s ease, border-color .2s ease;
+    }
+    .card:hover { box-shadow: 0 4px 18px rgba(0,0,0,.05); }
+
+    .habito-topo { display: flex; align-items: flex-start; gap: 12px; }
+    .check {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px;
+      border: 2px solid var(--cinza); background: #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: transparent; transition: all .15s ease;
+    }
+    .check:hover { border-color: var(--verde-claro); }
+    .check.feito { background: var(--verde); border-color: var(--verde); color: #fff; }
+    .check:active { transform: scale(.92); }
+
+    .habito-info { flex: 1; min-width: 0; }
+    .habito-nome { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .tag {
+      font-size: 11px; font-weight: 600; color: var(--cinza-texto);
+      background: #f3f4f6; padding: 2px 8px; border-radius: 999px; text-transform: uppercase; letter-spacing: .03em;
+    }
+    .stats { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 13px; color: var(--cinza-texto); }
+    .stats span strong { color: var(--texto); font-weight: 600; }
+
+    .remover {
+      background: none; border: none; color: #d1d5db; cursor: pointer;
+      font-size: 20px; line-height: 1; padding: 4px; border-radius: 8px; transition: color .15s;
+    }
+    .remover:hover { color: #ef4444; }
+
+    .sparkline { display: flex; align-items: flex-end; gap: 3px; height: 28px; margin-top: 12px; }
+    .spark-bar { width: 100%; flex: 1; background: var(--cinza); border-radius: 2px; min-height: 3px; }
+    .spark-bar.feito { background: var(--verde-claro); }
+
+    .add-form { display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap; }
+    .add-form input, .add-form select {
+      padding: 11px 14px; border: 1px solid var(--borda); border-radius: 10px; font-size: 14px;
+      font-family: inherit; outline: none; background: #fff;
+    }
+    .add-form input { flex: 1; min-width: 160px; }
+    .add-form input.meta { flex: 0 0 auto; width: 140px; min-width: 0; }
+    .add-form input:focus, .add-form select:focus { border-color: var(--verde-claro); box-shadow: 0 0 0 3px #dcfce7; }
+    .btn {
+      padding: 11px 18px; border: none; border-radius: 10px; background: var(--verde);
+      color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; font-family: inherit;
+      transition: background .15s;
+    }
+    .btn:hover { background: #15803d; }
+    .btn:disabled { background: #d1d5db; cursor: not-allowed; }
+
+    .secao-titulo { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--cinza-texto); margin: 32px 0 14px; }
+
+    .heatmap { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 4px; }
+    .heat-col { display: flex; flex-direction: column; gap: 4px; }
+    .heat-cell { width: 13px; height: 13px; border-radius: 3px; background: #ebedf0; flex-shrink: 0; }
+    .heat-cell.fora { background: transparent; }
+    .heat-legenda { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 12px; font-size: 12px; color: var(--cinza-texto); }
+
+    .badge-risco { font-size: 11px; font-weight: 700; color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 999px; }
+
+    .acoes { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .icone-btn {
+      background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1;
+      padding: 4px 6px; border-radius: 8px; color: #9ca3af; transition: color .15s, background .15s;
+    }
+    .icone-btn:hover { color: var(--texto); background: #f3f4f6; }
+    .icone-btn.perigo:hover { color: #ef4444; background: #fef2f2; }
+
+    /* edição inline */
+    .edit-form { display: flex; flex-direction: column; gap: 8px; }
+    .edit-linha { display: flex; gap: 8px; flex-wrap: wrap; }
+    .edit-form input, .edit-form select {
+      padding: 9px 12px; border: 1px solid var(--borda); border-radius: 9px; font-size: 14px;
+      font-family: inherit; outline: none; background: #fff;
+    }
+    .edit-form input.nome { flex: 1; min-width: 140px; }
+    .edit-form input.meta { width: 120px; }
+    .edit-form input:focus, .edit-form select:focus { border-color: var(--verde-claro); box-shadow: 0 0 0 3px #dcfce7; }
+    .edit-acoes { display: flex; gap: 8px; }
+    .btn-sec {
+      padding: 9px 14px; border: 1px solid var(--borda); border-radius: 9px; background: #fff;
+      color: var(--cinza-texto); font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    .btn-sec:hover { background: #f9fafb; }
+    .btn-sm { padding: 9px 14px; font-size: 13px; }
+
+    /* confirmação de remoção */
+    .confirma { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 2px 0; }
+    .confirma-texto { font-size: 14px; color: var(--texto); }
+    .btn-perigo {
+      padding: 8px 14px; border: none; border-radius: 9px; background: #ef4444;
+      color: #fff; font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    .btn-perigo:hover { background: #dc2626; }
+
+    /* biblioteca de sugestões */
+    .sugestoes { margin-bottom: 28px; }
+    .sugestoes-cabecalho {
+      display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+      font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--cinza-texto);
+      margin-bottom: 12px; user-select: none;
+    }
+    .sugestoes-grupo { margin-bottom: 14px; }
+    .sugestoes-grupo-titulo { font-size: 12px; font-weight: 600; color: #9ca3af; margin-bottom: 8px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 12px; border: 1px solid var(--borda); border-radius: 999px; background: #fff;
+      font-size: 13px; font-family: inherit; color: var(--texto); cursor: pointer; transition: all .15s;
+    }
+    .chip:hover { border-color: var(--verde-claro); background: #f0fdf4; }
+    .chip .mais { color: var(--verde); font-weight: 700; }
+    .chip .freq { color: #9ca3af; font-size: 11px; }
+    .chip.adicionado { color: #9ca3af; border-style: dashed; cursor: default; background: #fafafa; }
+    .chip.adicionado:hover { border-color: var(--borda); background: #fafafa; }
+
+    .vazio { text-align: center; color: var(--cinza-texto); padding: 40px 20px; font-size: 15px; }
+    .carregando { text-align: center; padding: 80px 20px; color: var(--cinza-texto); font-size: 15px; }
+
+    @media (max-width: 480px) {
+      .header h1 { font-size: 22px; }
+      .resumo { flex-direction: column; align-items: stretch; }
+      .resumo-barra { max-width: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const STORAGE_KEY = "rastreador-habitos-v1";
+    const TONS = ["#ebedf0", "#bbf7d0", "#86efac", "#4ade80", "#22c55e", "#16a34a"];
+
+    // Biblioteca de hábitos sugeridos (frequency: daily|weekly, meta = vezes/semana)
+    const SUGESTOES = [
+      { grupo: "Condicionamento físico", itens: [
+        { name: "Treino físico / preparação p/ TAF", frequency: "daily", meta: 5 },
+        { name: "Corrida ou caminhada", frequency: "daily", meta: 4 },
+        { name: "Alongamento / mobilidade", frequency: "daily", meta: 5 },
+      ]},
+      { grupo: "Estudo para concurso", itens: [
+        { name: "Resolver questões", frequency: "daily", meta: 6 },
+        { name: "Sessão de estudo focada", frequency: "daily", meta: 5 },
+        { name: "Revisão espaçada", frequency: "daily", meta: 4 },
+        { name: "Simulado cronometrado", frequency: "weekly", meta: 1 },
+      ]},
+      { grupo: "Exatas e lógica", itens: [
+        { name: "Praticar cálculo / EDO", frequency: "daily", meta: 4 },
+        { name: "Exercícios de lógica formal", frequency: "daily", meta: 3 },
+      ]},
+      { grupo: "Mente, disciplina e fé", itens: [
+        { name: "Oração / leitura bíblica", frequency: "daily", meta: 7 },
+        { name: "Leitura (filosofia, ciência, história)", frequency: "daily", meta: 5 },
+        { name: "Dormir antes das 23h", frequency: "daily", meta: 6 },
+        { name: "Planejar o dia de manhã", frequency: "daily", meta: 6 },
+      ]},
+      { grupo: "Vida pessoal e gestão", itens: [
+        { name: "Tempo de qualidade com a noiva", frequency: "daily", meta: 5 },
+        { name: "Revisar planejamento financeiro", frequency: "weekly", meta: 1 },
+        { name: "Cuidar dos gatos / casa", frequency: "daily", meta: 6 },
+        { name: "Organizar pendências e documentos", frequency: "weekly", meta: 2 },
+      ]},
+    ];
+
+    // ---------- Persistência (window.storage dos Artifacts ou localStorage) ----------
+    async function carregar() {
+      try {
+        const store = (window.storage && window.storage.getItem) ? window.storage : localStorage;
+        const raw = await store.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        console.error("Falha ao carregar:", e);
+        return null;
+      }
+    }
+    async function salvar(data) {
+      try {
+        const store = (window.storage && window.storage.setItem) ? window.storage : localStorage;
+        await store.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        console.error("Falha ao salvar:", e);
+      }
+    }
+
+    // ---------- Datas (sempre no fuso horário local) ----------
+    function chaveDia(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dia = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${dia}`;
+    }
+    function deChave(k) { return new Date(k + "T00:00:00"); } // meia-noite local
+    function hojeChave() { return chaveDia(new Date()); }
+    function somaDias(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+    function difDias(a, b) { return Math.round((a - b) / 86400000); } // robusto a horário de verão
+    // segunda-feira como início da semana, normalizada à meia-noite local
+    function inicioSemana(d) {
+      const x = new Date(d);
+      const off = (x.getDay() + 6) % 7; // 0 = segunda
+      x.setDate(x.getDate() - off);
+      x.setHours(0, 0, 0, 0);
+      return x;
+    }
+
+    // ---------- Cálculo de sequências ----------
+    function diasFeitos(comp) {
+      return Object.keys(comp || {}).filter(k => comp[k]).sort();
+    }
+
+    function streakDiarioAtual(comp) {
+      let streak = 0;
+      let cur = new Date(); cur.setHours(0, 0, 0, 0);
+      // se hoje ainda não foi marcado, a sequência não quebra: começa de ontem
+      if (!comp[chaveDia(cur)]) cur = somaDias(cur, -1);
+      while (comp[chaveDia(cur)]) { streak++; cur = somaDias(cur, -1); }
+      return streak;
+    }
+    function streakDiarioMaior(comp) {
+      const dias = diasFeitos(comp);
+      let best = 0, run = 0, prev = null;
+      for (const k of dias) {
+        const d = deChave(k);
+        run = (prev && difDias(d, prev) === 1) ? run + 1 : 1;
+        best = Math.max(best, run);
+        prev = d;
+      }
+      return best;
+    }
+
+    // mapa { chaveInicioSemana: quantidade de conclusões na semana }
+    function contagemPorSemana(comp) {
+      const m = {};
+      for (const k in comp) if (comp[k]) {
+        const ws = chaveDia(inicioSemana(deChave(k)));
+        m[ws] = (m[ws] || 0) + 1;
+      }
+      return m;
+    }
+    function conclusoesNaSemana(comp, ref) {
+      const ws = chaveDia(inicioSemana(ref || new Date()));
+      return contagemPorSemana(comp)[ws] || 0;
+    }
+    // semanas que atingiram a meta (>= meta conclusões)
+    function semanasMeta(comp, meta) {
+      const m = contagemPorSemana(comp);
+      const alvo = meta || 1;
+      return Object.keys(m).filter(ws => m[ws] >= alvo).sort();
+    }
+    function streakSemanalAtual(comp, meta) {
+      const semanas = new Set(semanasMeta(comp, meta));
+      let streak = 0;
+      let cur = inicioSemana(new Date());
+      // a semana atual ainda pode não ter batido a meta: não quebra a sequência
+      if (!semanas.has(chaveDia(cur))) cur = somaDias(cur, -7);
+      while (semanas.has(chaveDia(cur))) { streak++; cur = somaDias(cur, -7); }
+      return streak;
+    }
+    function streakSemanalMaior(comp, meta) {
+      const semanas = semanasMeta(comp, meta);
+      let best = 0, run = 0, prev = null;
+      for (const k of semanas) {
+        const d = deChave(k);
+        run = (prev && difDias(d, prev) === 7) ? run + 1 : 1;
+        best = Math.max(best, run);
+        prev = d;
+      }
+      return best;
+    }
+
+    function taxaConclusao(habito, comp) {
+      const criado = deChave(habito.createdAt);
+      criado.setHours(0, 0, 0, 0);
+      const feitos = diasFeitos(comp).length;
+      if (habito.frequency === "weekly") {
+        const totalSemanas = difDias(inicioSemana(new Date()), inicioSemana(criado)) / 7 + 1;
+        const feitasSemanas = semanasMeta(comp, habito.meta).length;
+        return totalSemanas > 0 ? Math.round((feitasSemanas / totalSemanas) * 100) : 0;
+      }
+      const totalDias = difDias(new Date(), criado) + 1;
+      return totalDias > 0 ? Math.round((feitos / totalDias) * 100) : 0;
+    }
+
+    function infoHabito(h) {
+      const comp = h.completions || {};
+      const semanal = h.frequency === "weekly";
+      const meta = h.meta || (semanal ? 1 : 7);
+      return {
+        meta,
+        atual: semanal ? streakSemanalAtual(comp, meta) : streakDiarioAtual(comp),
+        maior: semanal ? streakSemanalMaior(comp, meta) : streakDiarioMaior(comp),
+        taxa: taxaConclusao(h, comp),
+        naSemana: conclusoesNaSemana(comp),
+      };
+    }
+
+    // quantos dias ainda restam na semana atual, incluindo hoje (segunda..domingo)
+    function diasRestantesSemana() { return 7 - ((new Date().getDay() + 6) % 7); }
+
+    // pontuação de risco de quebrar a sequência hoje — maior = mais urgente
+    function risco(h) {
+      const comp = h.completions || {};
+      const info = infoHabito(h);
+      if (h.frequency === "weekly") {
+        const faltam = info.meta - info.naSemana;
+        if (faltam <= 0) return 0; // meta já batida nesta semana
+        const dias = diasRestantesSemana();
+        // só está "em jogo" se a sequência semanal corre risco real
+        return info.atual > 0 ? 100 + (faltam / dias) : 50 + (faltam / dias);
+      }
+      // diário: pendente hoje sobe ao topo; sequência maior em jogo vence o desempate
+      if (comp[hojeChave()]) return 0;
+      return 200 + info.atual;
+    }
+    function emRisco(h) {
+      const comp = h.completions || {};
+      const info = infoHabito(h);
+      if (h.frequency === "weekly") {
+        return info.naSemana < info.meta && diasRestantesSemana() <= 2 && info.atual > 0;
+      }
+      return !comp[hojeChave()] && info.atual > 0;
+    }
+
+    // ---------- Componentes ----------
+    function Sparkline({ comp }) {
+      const dias = [];
+      const base = new Date(); base.setHours(0, 0, 0, 0);
+      for (let i = 13; i >= 0; i--) {
+        const k = chaveDia(somaDias(base, -i));
+        dias.push(!!comp[k]);
+      }
+      return (
+        <div className="sparkline" title="Últimas 2 semanas">
+          {dias.map((feito, i) => (
+            <div key={i} className={"spark-bar" + (feito ? " feito" : "")}
+                 style={{ height: feito ? "100%" : "30%" }} />
+          ))}
+        </div>
+      );
+    }
+
+    const DIAS_JANELA = 90;
+    function Heatmap({ habits }) {
+      const total = habits.length || 1;
+      const fim = new Date(); fim.setHours(0, 0, 0, 0);
+      const inicio = somaDias(fim, -(DIAS_JANELA - 1));
+      const colunas = [];
+      let cur = inicioSemana(inicio); // alinha a grade ao início da semana
+      while (cur <= fim) {
+        const semana = [];
+        for (let r = 0; r < 7; r++) {
+          const d = somaDias(cur, r);
+          const dentro = d >= inicio && d <= fim;
+          const k = chaveDia(d);
+          let feitos = 0;
+          if (dentro) habits.forEach(h => { if (h.completions && h.completions[k]) feitos++; });
+          let nivel = 0;
+          if (feitos > 0) nivel = Math.min(TONS.length - 1, 1 + Math.floor((feitos / total) * (TONS.length - 2)));
+          semana.push({ k, dentro, feitos, nivel, label: d.toLocaleDateString("pt-BR") });
+        }
+        colunas.push(semana);
+        cur = somaDias(cur, 7);
+      }
+      return (
+        <div>
+          <div className="heatmap">
+            {colunas.map((semana, ci) => (
+              <div className="heat-col" key={ci}>
+                {semana.map(c => (
+                  <div key={c.k}
+                       className={"heat-cell" + (c.dentro ? "" : " fora")}
+                       style={c.dentro ? { background: TONS[c.nivel] } : null}
+                       title={c.dentro ? `${c.label}: ${c.feitos} de ${habits.length} hábito(s)` : ""} />
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="heat-legenda">
+            <span>Menos</span>
+            {TONS.map((t, i) => <div key={i} className="heat-cell" style={{ background: t }} />)}
+            <span>Mais</span>
+          </div>
+        </div>
+      );
+    }
+
+    function Sugestoes({ existentes, onAdd }) {
+      const [aberto, setAberto] = useState(true);
+      const nomes = new Set(existentes.map(h => h.name.trim().toLowerCase()));
+      return (
+        <div className="sugestoes">
+          <div className="sugestoes-cabecalho" onClick={() => setAberto(a => !a)}>
+            <span>💡 Sugestões de hábitos</span>
+            <span>{aberto ? "▲ ocultar" : "▼ mostrar"}</span>
+          </div>
+          {aberto && SUGESTOES.map(g => (
+            <div className="sugestoes-grupo" key={g.grupo}>
+              <div className="sugestoes-grupo-titulo">{g.grupo}</div>
+              <div className="chips">
+                {g.itens.map(it => {
+                  const jaTem = nomes.has(it.name.trim().toLowerCase());
+                  return (
+                    <button key={it.name}
+                      className={"chip" + (jaTem ? " adicionado" : "")}
+                      onClick={() => !jaTem && onAdd(it)}
+                      disabled={jaTem}
+                      title={jaTem ? "Já adicionado" : `Adicionar — ${it.frequency === "weekly" ? "semanal" : "diária"}, meta ${it.meta}/sem`}>
+                      {jaTem ? "✓ " : <span className="mais">+ </span>}
+                      {it.name}
+                      <span className="freq">{it.frequency === "weekly" ? "sem" : "dia"}·{it.meta}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    function CartaoHabito({ h, hoje, onToggle, onSalvar, onRemover }) {
+      const [editando, setEditando] = useState(false);
+      const [confirmando, setConfirmando] = useState(false);
+      const [nome, setNome] = useState(h.name);
+      const [freq, setFreq] = useState(h.frequency);
+      const [meta, setMeta] = useState(h.meta || (h.frequency === "weekly" ? 1 : 7));
+
+      function abrirEdicao() {
+        setNome(h.name);
+        setFreq(h.frequency);
+        setMeta(h.meta || (h.frequency === "weekly" ? 1 : 7));
+        setConfirmando(false);
+        setEditando(true);
+      }
+      function salvar(e) {
+        e.preventDefault();
+        const n = nome.trim();
+        if (!n) return;
+        const metaNum = Math.min(7, Math.max(1, parseInt(meta, 10) || (freq === "weekly" ? 1 : 7)));
+        onSalvar(h.id, { name: n, frequency: freq, meta: metaNum });
+        setEditando(false);
+      }
+
+      if (editando) {
+        return (
+          <div className="card">
+            <form className="edit-form" onSubmit={salvar}>
+              <input className="nome" value={nome} autoFocus
+                     onChange={e => setNome(e.target.value)} placeholder="Nome do hábito" />
+              <div className="edit-linha">
+                <select value={freq} onChange={e => { const f = e.target.value; setFreq(f); setMeta(f === "weekly" ? 1 : 7); }}>
+                  <option value="daily">Diária</option>
+                  <option value="weekly">Semanal</option>
+                </select>
+                <input className="meta" type="number" min="1" max="7" value={meta}
+                       onChange={e => setMeta(e.target.value)} title="Meta de vezes por semana" />
+              </div>
+              <div className="edit-acoes">
+                <button type="submit" className="btn btn-sm" disabled={!nome.trim()}>Salvar</button>
+                <button type="button" className="btn-sec" onClick={() => setEditando(false)}>Cancelar</button>
+              </div>
+            </form>
+          </div>
+        );
+      }
+
+      const info = infoHabito(h);
+      const feitoHoje = !!(h.completions && h.completions[hoje]);
+      return (
+        <div className="card">
+          <div className="habito-topo">
+            <button className={"check" + (feitoHoje ? " feito" : "")} onClick={() => onToggle(h.id)}
+                    aria-label={feitoHoje ? "Desmarcar hoje" : "Marcar como concluído hoje"}>✓</button>
+            <div className="habito-info">
+              <div className="habito-nome">
+                {h.name}
+                <span className="tag">{h.frequency === "weekly" ? "Semanal" : "Diária"}</span>
+                {emRisco(h) && <span className="badge-risco">Em risco</span>}
+              </div>
+              <div className="stats">
+                <span>🔥 Sequência: <strong>{info.atual}</strong></span>
+                <span>🏆 Recorde: <strong>{info.maior}</strong></span>
+                <span>🎯 Meta: <strong>{info.naSemana}/{info.meta}</strong> na semana</span>
+                <span>📈 Conclusão: <strong>{info.taxa}%</strong></span>
+              </div>
+              {confirmando ? (
+                <div className="confirma">
+                  <span className="confirma-texto">Remover “{h.name}” e todo o histórico?</span>
+                  <button className="btn-perigo" onClick={() => onRemover(h.id)}>Remover</button>
+                  <button className="btn-sec" onClick={() => setConfirmando(false)}>Cancelar</button>
+                </div>
+              ) : (
+                <Sparkline comp={h.completions || {}} />
+              )}
+            </div>
+            <div className="acoes">
+              <button className="icone-btn" onClick={abrirEdicao} title="Editar" aria-label="Editar hábito">✏️</button>
+              <button className="icone-btn perigo" onClick={() => setConfirmando(true)} title="Remover" aria-label="Remover hábito">🗑️</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [data, setData] = useState(null); // null = carregando
+      const [nome, setNome] = useState("");
+      const [freq, setFreq] = useState("daily");
+      const [meta, setMeta] = useState(7); // meta de conclusões por semana
+      const primeira = useRef(true);
+      const inputArquivo = useRef(null);
+
+      function trocarFreq(f) {
+        setFreq(f);
+        setMeta(f === "weekly" ? 1 : 7); // padrão sensato por frequência
+      }
+
+      useEffect(() => {
+        carregar().then(d => setData(d || { habits: [] }));
+      }, []);
+
+      // salva combinando hábitos + histórico numa única chave
+      useEffect(() => {
+        if (data === null) return;
+        if (primeira.current) { primeira.current = false; return; }
+        salvar(data);
+      }, [data]);
+
+      if (data === null) {
+        return <div className="container"><div className="carregando">Carregando seus hábitos…</div></div>;
+      }
+
+      const habits = data.habits;
+      const hoje = hojeChave();
+
+      function novoHabito(name, frequency, metaBruta) {
+        const metaNum = Math.min(7, Math.max(1, parseInt(metaBruta, 10) || (frequency === "weekly" ? 1 : 7)));
+        return {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          name,
+          frequency,
+          meta: metaNum,
+          createdAt: hoje,
+          completions: {},
+        };
+      }
+
+      function adicionar(e) {
+        e.preventDefault();
+        const n = nome.trim();
+        if (!n) return;
+        setData({ ...data, habits: [...habits, novoHabito(n, freq, meta)] });
+        setNome("");
+        setFreq("daily");
+        setMeta(7);
+      }
+
+      // adiciona a partir de um chip de sugestão (evita duplicar pelo nome)
+      function adicionarSugestao(it) {
+        const existe = habits.some(h => h.name.trim().toLowerCase() === it.name.trim().toLowerCase());
+        if (existe) return;
+        setData({ ...data, habits: [...habits, novoHabito(it.name, it.frequency, it.meta)] });
+      }
+
+      // salva edição preservando histórico e data de criação
+      function editar(id, campos) {
+        setData({
+          ...data,
+          habits: habits.map(h => h.id === id ? { ...h, ...campos } : h),
+        });
+      }
+
+      function remover(id) {
+        setData({ ...data, habits: habits.filter(h => h.id !== id) });
+      }
+
+      // baixa um backup .json com hábitos + histórico
+      function exportar() {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `rastreador-habitos-${hoje}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      // restaura a partir de um backup .json (substitui os dados atuais)
+      function aoImportar(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const obj = JSON.parse(reader.result);
+            if (!obj || !Array.isArray(obj.habits)) throw new Error("estrutura inesperada");
+            if (window.confirm(`Importar ${obj.habits.length} hábito(s)? Isso substitui todos os dados atuais.`)) {
+              setData({ habits: obj.habits });
+            }
+          } catch (err) {
+            window.alert("Arquivo inválido. Use um backup exportado por este app.");
+          }
+          e.target.value = ""; // permite reimportar o mesmo arquivo depois
+        };
+        reader.readAsText(file);
+      }
+
+      function alternarHoje(id) {
+        setData({
+          ...data,
+          habits: habits.map(h => {
+            if (h.id !== id) return h;
+            const comp = { ...(h.completions || {}) };
+            if (comp[hoje]) delete comp[hoje]; else comp[hoje] = true;
+            return { ...h, completions: comp };
+          }),
+        });
+      }
+
+      const concluidosHoje = habits.filter(h => h.completions && h.completions[hoje]).length;
+      const pct = habits.length ? Math.round((concluidosHoje / habits.length) * 100) : 0;
+
+      return (
+        <div className="container">
+          <div className="header">
+            <div>
+              <h1>Rastreador de Hábitos</h1>
+              <p>Pequenos passos, todos os dias.</p>
+            </div>
+            <div className="header-acoes">
+              <button className="btn-sec btn-sm" onClick={exportar} title="Baixar backup (.json)">⬇ Exportar</button>
+              <button className="btn-sec btn-sm" onClick={() => inputArquivo.current && inputArquivo.current.click()} title="Restaurar de um backup (.json)">⬆ Importar</button>
+              <input ref={inputArquivo} type="file" accept="application/json,.json" style={{ display: "none" }} onChange={aoImportar} />
+            </div>
+          </div>
+
+          <div className="resumo">
+            <div className="resumo-texto">
+              <strong>{concluidosHoje}</strong> de <strong>{habits.length}</strong> hábitos concluídos hoje
+            </div>
+            <div className="resumo-barra"><div style={{ width: pct + "%" }} /></div>
+          </div>
+
+          <form className="add-form" onSubmit={adicionar}>
+            <input value={nome} onChange={e => setNome(e.target.value)} placeholder="Novo hábito (ex.: Beber água)" />
+            <select value={freq} onChange={e => trocarFreq(e.target.value)}>
+              <option value="daily">Diária</option>
+              <option value="weekly">Semanal</option>
+            </select>
+            <input className="meta" type="number" min="1" max="7" value={meta}
+                   onChange={e => setMeta(e.target.value)}
+                   title="Meta de vezes por semana"
+                   placeholder="Meta/semana" />
+            <button className="btn" type="submit" disabled={!nome.trim()}>Adicionar</button>
+          </form>
+
+          <Sugestoes existentes={habits} onAdd={adicionarSugestao} />
+
+          {habits.length === 0 ? (
+            <div className="vazio">Nenhum hábito ainda. Adicione um acima ou escolha uma sugestão. 🌱</div>
+          ) : (
+            [...habits].sort((a, b) => risco(b) - risco(a)).map(h => (
+              <CartaoHabito key={h.id} h={h} hoje={hoje}
+                onToggle={alternarHoje} onSalvar={editar} onRemover={remover} />
+            ))
+          )}
+
+          {habits.length > 0 && (
+            <>
+              <div className="secao-titulo">Últimos 90 dias</div>
+              <div className="card">
+                <Heatmap habits={habits} />
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+  <script>
+    // Registra o service worker para funcionar offline e ser instalável
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function (e) {
+          console.warn("Service worker não registrado:", e);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
