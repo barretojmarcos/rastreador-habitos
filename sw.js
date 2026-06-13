@@ -1,5 +1,5 @@
 // Service worker — cache-first para uso offline e instalação como app
-const CACHE = "habitos-v3";
+const CACHE = "habitos-v4";
 const ASSETS = [
   "./",
   "./index.html",

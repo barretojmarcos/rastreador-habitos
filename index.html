@@ -46,6 +46,7 @@
     }
     .dados-status .ok { color: var(--verde); font-weight: 600; }
     .dados-status .aviso { color: #b45309; font-weight: 600; }
+    .dados-status .info { color: #475569; font-weight: 600; }
 
     .resumo {
       background: linear-gradient(135deg, #f0fdf4, #ffffff);
@@ -390,6 +391,20 @@
       return !comp[hojeChave()] && info.atual > 0;
     }
 
+    function ehIOS() {
+      try { if (localStorage.getItem("forceIOS") === "1") return true; } catch (e) {}
+      return /iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+    }
+    // mensagem da barra de status conforme o estado do armazenamento e o sistema
+    function rotuloArmazenamento(estado, isIOS) {
+      if (estado === null) return { texto: "Verificando armazenamento…", classe: "" };
+      if (estado === "persistente") return { texto: "🔒 Dados protegidos no aparelho", classe: "ok" };
+      // no iPhone o app não controla a persistência: backup manual é o esperado, sem alarme
+      if (isIOS) return { texto: "📱 Dados salvos neste iPhone — exporte um backup de vez em quando", classe: "info" };
+      if (estado === "volatil") return { texto: "⚠️ O navegador pode limpar os dados — exporte um backup", classe: "aviso" };
+      return { texto: "Armazenamento padrão do navegador", classe: "" };
+    }
+
     // ---------- Componentes ----------
     function Sparkline({ comp }) {
       const dias = [];
@@ -714,6 +729,7 @@
       const ultimoBackup = data.lastBackup ? deChave(data.lastBackup).toLocaleDateString("pt-BR") : null;
       const diasSemBackup = data.lastBackup ? difDias(new Date(), deChave(data.lastBackup)) : null;
       const backupVelho = habits.length > 0 && (diasSemBackup === null || diasSemBackup > 7);
+      const rotulo = rotuloArmazenamento(armazenamento, ehIOS());
 
       return (
         <div className="container">
@@ -730,12 +746,7 @@
           </div>
 
           <div className="dados-status">
-            <span className={armazenamento === "persistente" ? "ok" : armazenamento === "volatil" ? "aviso" : ""}>
-              {armazenamento === "persistente" && "🔒 Dados protegidos no aparelho"}
-              {armazenamento === "volatil" && "⚠️ O navegador pode limpar os dados — exporte um backup"}
-              {armazenamento === "indisponivel" && "Armazenamento padrão do navegador"}
-              {armazenamento === null && "Verificando armazenamento…"}
-            </span>
+            <span className={rotulo.classe}>{rotulo.texto}</span>
             <span className={backupVelho ? "aviso" : ""}>
               {ultimoBackup ? `Último backup: ${ultimoBackup}` : "Sem backup ainda"}
             </span>
